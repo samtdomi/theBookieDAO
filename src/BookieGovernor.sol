@@ -23,7 +23,7 @@ contract BookieGovernor is
         IVotes _token,
         TimelockController _timelock
     )
-        Governor("theBookieDAO")
+        Governor("TheBookie")
         GovernorSettings(7200 /* 1 day */, 50400 /* 1 week */, 0)
         GovernorVotes(_token)
         GovernorVotesQuorumFraction(5)

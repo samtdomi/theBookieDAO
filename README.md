@@ -1,4 +1,3 @@
-
 * theBookie will be a smart contract that has the attributes of the DAO Book Club:
     - store current book of the month 
     - allow users to submit book summaries of the book of the month

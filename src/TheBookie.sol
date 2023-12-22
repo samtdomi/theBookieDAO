@@ -4,7 +4,9 @@ pragma solidity ^0.8.20;
 
 /** Import Statements */
 import {Ownable} from "lib/openzeppelin-contracts/contracts/access/Ownable.sol";
-import {GovernorToken, ERC20} from "./GovernorToken.sol";
+import {BookieToken, ERC20} from "./BookieToken.sol";
+import {AutomationCompatibleInterface} from "lib/chainlink-brownie-contracts/contracts/src/v0.8/interfaces/AutomationCompatibleInterface.sol";
+import {TimeLock} from "./TimeLock.sol";
 
 /** Error Declarations */
 error theBookie__WrongBook();
@@ -18,16 +20,17 @@ error theBookie__RatingMustBeBetween1And5Stars();
  * @author Samuel Dominguez
  * @notice
  */
-contract theBookie is Ownable {
+contract TheBookie is Ownable, AutomationCompatibleInterface {
     ///////////////////////////////
     ////   Type Declarations  /////
     ///////////////////////////////
-    GovernorToken governorToken;
+    BookieToken private immutable i_bookieToken;
     ///////////////////////////////
     ////    State Variables   /////
     ///////////////////////////////
     string public currentBook;
-    string[] public books;
+    string[] public previousBooks;
+    string[] public votableBooks;
 
     mapping(string bookName => mapping(uint256 stars => uint256 addToThisStar))
         public bookStarReviews;
@@ -48,16 +51,24 @@ contract theBookie is Ownable {
     ////       Functions      ////////////////////////////////////////////////////////////
     //////////////////////////////////////////////////////////////////////////////////////
 
-    constructor(address initialOwner) Ownable(initialOwner) {}
+    constructor(
+        address initialOwner,
+        address _bookieToken
+    ) Ownable(initialOwner) {
+        i_bookieToken = BookieToken(_bookieToken);
+    }
 
-    /**
+    /** bookOfTheMonth
      * @dev this function stores the current book of the month
      * @dev the book of the month changes when the Governor contract
      * completes a vote of proposed books and the Governor contract
      * will call this function and change the book
      */
-    function bookOfTheMonth(string memory _book) public onlyOwner {
+    function BookOfTheMonth(string memory _book) public onlyOwner {
+        previousBooks.push(currentBook);
         currentBook = _book;
+
+        votableBooks = new string[](0);
         emit BookOfTheMonthChanged(_book);
     }
 
@@ -87,7 +98,7 @@ contract theBookie is Ownable {
         bookSummaries[_book].push(_summary);
 
         // reward the user for their summary with 3 theBookieToken's
-        governorToken.mint(msg.sender, 3);
+        i_bookieToken.mint(msg.sender, 3);
 
         emit SummarySubmittedAndUserRewarded(msg.sender, 3);
     }
@@ -116,8 +127,27 @@ contract theBookie is Ownable {
         bookStarReviews[_book][starRating] += 1;
 
         // reward the user with 1 theBookieToken
-        governorToken.mint(msg.sender, 1);
+        i_bookieToken.mint(msg.sender, 1);
 
         emit StarReviewSubmittedAndUserRewarded(msg.sender, 1);
+    }
+
+    /**
+     * @notice this function allows a member of the DAO to submit and add a book to the array of books
+     * to be voted on for the next book of the month
+     * @dev any book submission requires the user to burn 1 bookie Token to ensure they have stake in the DAO
+     */
+    function addBook(string memory _bookName) public payable {
+        i_bookieToken.burn(msg.sender, 1);
+        votableBooks.push(_bookName);
+    }
+
+    /**
+     * @notice this function is created so that new users can receive a "welcome bonus" - giving them the ability
+     * to have atleast, some small say in the voting process as an incentive to get them interested and engaged.
+     * @param _to is the user calling the function to receive their initial bookieToken for joining so they can vote
+     */
+    function mintStartingTokenAllowance(address _to) public {
+        i_bookieToken.mintStartingAllowance(_to);
     }
 }
